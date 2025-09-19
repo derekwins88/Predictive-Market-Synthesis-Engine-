@@ -26,7 +26,15 @@ dev = [
 include = ["imm_*"]
 
 [tool.ruff]
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+extend-select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["imm_adapters", "imm_engine", "imm_hud", "imm_proof"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
