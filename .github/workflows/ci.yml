@@ -1,0 +1,23 @@
+name: imm-ci
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request: {}
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .[dev]
+      - run: ruff check .
+      - run: black --check .
+      - run: pytest -q
+      - run: python scripts/smoke_run.py tests/data/sample_bars.csv
+      - name: verify ledger
+        run: python proof/verifier.py logs/ledger.jsonl

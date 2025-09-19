@@ -1,0 +1,23 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+.env
+dist/
+build/
+*.egg-info/
+
+# node (hud)
+node_modules/
+hud/dist/
+
+# logs & artifacts
+logs/
+proof/*.csv
+proof/*.jsonl
+artifacts/
+
+# editors
+.DS_Store
+.vscode/
+.idea/
