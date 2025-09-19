@@ -14,8 +14,10 @@ Input (line-by-line):
 *Kafka is optional (requires confluent-kafka)
 """
 
-import asyncio
+from __future__ import annotations
+
 import argparse
+import asyncio
 import csv
 import json
 import os
@@ -24,7 +26,7 @@ import sqlite3
 import sys
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # -------------------------
 # Schema & normalization
@@ -43,7 +45,7 @@ FIELDS = [
 ]
 
 
-def _parse_line(line: str) -> Optional[Dict[str, Any]]:
+def _parse_line(line: str) -> dict[str, Any] | None:
     """Best-effort parse of a CSV or NDJSON line to the canonical bar schema."""
     line = line.strip()
     if not line:
@@ -68,10 +70,10 @@ def _parse_line(line: str) -> Optional[Dict[str, Any]]:
     return _normalize(data)
 
 
-def _to_iso(ts: Any) -> Optional[str]:
+def _to_iso(ts: Any) -> str | None:
     if ts is None or ts == "":
         return None
-    if isinstance(ts, (int, float)):
+    if isinstance(ts, int | float):
         return datetime.utcfromtimestamp(float(ts)).isoformat() + "Z"
     s = str(ts)
     try:
@@ -92,21 +94,18 @@ def _to_iso(ts: Any) -> Optional[str]:
     return None
 
 
-def _fnum(x: Any) -> Optional[float]:
+def _fnum(x: Any) -> float | None:
     try:
         return float(x)
     except Exception:
         return None
 
 
-def _normalize(obj: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _normalize(obj: dict[str, Any]) -> dict[str, Any] | None:
     """Normalize arbitrary field names into the canonical schema."""
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     out["timestamp"] = _to_iso(
-        obj.get("timestamp")
-        or obj.get("time")
-        or obj.get("date")
-        or obj.get("datetime")
+        obj.get("timestamp") or obj.get("time") or obj.get("date") or obj.get("datetime")
     )
     symbol = obj.get("symbol") or obj.get("sym") or ""
     out["symbol"] = str(symbol).strip().upper()
@@ -131,7 +130,7 @@ def _normalize(obj: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 class Sink:
-    def write(self, row: Dict[str, Any]) -> None:
+    def write(self, row: dict[str, Any]) -> None:
         raise NotImplementedError
 
     def close(self) -> None:
@@ -139,15 +138,15 @@ class Sink:
 
 
 class StdoutSink(Sink):
-    def write(self, row: Dict[str, Any]) -> None:
+    def write(self, row: dict[str, Any]) -> None:
         print(json.dumps(row, separators=(",", ":")))
 
 
 class RotatingFileSink(Sink):
     def __init__(self, path_pattern: str):
         self.path_pattern = path_pattern
-        self.fp: Optional[Any] = None
-        self.current_path: Optional[str] = None
+        self.fp: Any | None = None
+        self.current_path: str | None = None
         directory = os.path.dirname(self._render_path())
         if directory:
             os.makedirs(directory, exist_ok=True)
@@ -163,7 +162,7 @@ class RotatingFileSink(Sink):
             self.current_path = path
             self.fp = open(path, "a", buffering=1, encoding="utf-8")
 
-    def write(self, row: Dict[str, Any]) -> None:
+    def write(self, row: dict[str, Any]) -> None:
         self._ensure_fp()
         assert self.fp is not None
         self.fp.write(json.dumps(row, separators=(",", ":")) + "\n")
@@ -180,7 +179,7 @@ class SQLiteSink(Sink):
         pathlib.Path(directory).mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self._ensure_schema()
-        self._batch: List[Dict[str, Any]] = []
+        self._batch: list[dict[str, Any]] = []
         self._last_flush = time.time()
 
     def _ensure_schema(self) -> None:
@@ -202,12 +201,10 @@ class SQLiteSink(Sink):
         );
         """
         )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS ix_bars_ts_sym ON bars(timestamp, symbol);"
-        )
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_bars_ts_sym ON bars(timestamp, symbol);")
         self.conn.commit()
 
-    def write(self, row: Dict[str, Any]) -> None:
+    def write(self, row: dict[str, Any]) -> None:
         self._batch.append(row)
         if len(self._batch) >= 250 or (time.time() - self._last_flush) > 1.0:
             self.flush()
@@ -245,7 +242,7 @@ class KafkaSink(Sink):
         self.topic = topic
         self.producer = Producer({"bootstrap.servers": brokers})
 
-    def write(self, row: Dict[str, Any]) -> None:
+    def write(self, row: dict[str, Any]) -> None:
         self.producer.produce(self.topic, json.dumps(row).encode("utf-8"))
         self.producer.poll(0)
 
@@ -277,9 +274,7 @@ class Metrics:
     def maybe_log(self) -> None:
         now = time.time()
         if now - self.last_log >= 10:
-            print(
-                f"📊 bars recv={self.received} ok={self.parsed} dropped={self.dropped}"
-            )
+            print(f"📊 bars recv={self.received} ok={self.parsed} dropped={self.dropped}")
             self.last_log = now
 
 
@@ -288,8 +283,8 @@ class Metrics:
 # -------------------------
 
 
-async def serve(host: str, port: int, sinks: List[Sink], max_queue: int) -> None:
-    queue: "asyncio.Queue[Dict[str, Any]]" = asyncio.Queue(maxsize=max_queue)
+async def serve(host: str, port: int, sinks: list[Sink], max_queue: int) -> None:
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=max_queue)
     metrics = Metrics()
 
     async def writer() -> None:
@@ -345,8 +340,8 @@ async def serve(host: str, port: int, sinks: List[Sink], max_queue: int) -> None
 # -------------------------
 
 
-def build_sinks(args: argparse.Namespace) -> List[Sink]:
-    sinks: List[Sink] = []
+def build_sinks(args: argparse.Namespace) -> list[Sink]:
+    sinks: list[Sink] = []
     for name in args.sink.split(","):
         n = name.strip().lower()
         if n == "stdout":

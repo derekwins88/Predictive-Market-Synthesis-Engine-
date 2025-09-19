@@ -33,11 +33,7 @@ def stream_csv(path: str) -> Iterable[dict[str, Any]]:
         raise ValueError(f"CSV missing required columns: {missing}")
 
     timestamps = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
-    df = (
-        df.assign(timestamp=timestamps)
-        .dropna(subset=["timestamp"])
-        .sort_values("timestamp")
-    )
+    df = df.assign(timestamp=timestamps).dropna(subset=["timestamp"]).sort_values("timestamp")
 
     for _, row in df.iterrows():
         yield {

@@ -15,8 +15,12 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e .[dev]
-      - run: ruff check .
-      - run: black --check .
+      - name: Ruff (autofix)
+        run: |
+          python -m pip install ruff black
+          ruff check . --fix
+      - name: Black --check
+        run: black --check .
       - run: pytest -q
       - run: python scripts/smoke_run.py tests/data/sample_bars.csv
       - name: verify ledger

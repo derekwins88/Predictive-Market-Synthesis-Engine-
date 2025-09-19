@@ -37,9 +37,7 @@ class SynthesisVector:
 
         entropy_component = 1.0 - float(np.std(self.entropy_signature))
         topology_component = float(np.clip(np.mean(self.topology_embedding), -1.0, 1.0))
-        coherence_component = float(
-            np.real(np.vdot(self.quantum_state, self.quantum_state))
-        )
+        coherence_component = float(np.real(np.vdot(self.quantum_state, self.quantum_state)))
         return (
             0.4 * entropy_component
             + 0.3 * topology_component
@@ -58,9 +56,7 @@ class PredictiveSynthesisEngine:
             "medium": 1800,
             "macro": 86_400,
         }
-        self.timeframes: MutableMapping[str, int] = dict(
-            timeframes or default_timeframes
-        )
+        self.timeframes: MutableMapping[str, int] = dict(timeframes or default_timeframes)
         self._ordered_timeframes = list(self.timeframes.items())
         self.level = IntelligenceLevel.REACTIVE
         self.hist: deque[SynthesisVector] = deque(maxlen=10_000)
@@ -90,9 +86,9 @@ class PredictiveSynthesisEngine:
         predictions: dict[str, dict[str, float]] = {}
         for idx, (name, seconds) in enumerate(self._ordered_timeframes):
             predictions[name] = self._predict_horizon(vector, idx, seconds)
-        confidence_values = [
-            prediction["confidence"] for prediction in predictions.values()
-        ] or [vector.conf]
+        confidence_values = [prediction["confidence"] for prediction in predictions.values()] or [
+            vector.conf
+        ]
         meta = 1.0 - float(np.std(confidence_values))
         self._update_level(vector, meta)
         regime = self._regime(vector)
@@ -153,18 +149,11 @@ class PredictiveSynthesisEngine:
         index = int(time.time()) % len(options)
         return options[index]
 
-    def _confidence(
-        self, entropy: np.ndarray, topology: np.ndarray, quantum: np.ndarray
-    ) -> float:
+    def _confidence(self, entropy: np.ndarray, topology: np.ndarray, quantum: np.ndarray) -> float:
         entropy_term = 1.0 / (1.0 + float(np.var(entropy)) + 1e-9)
         topology_term = float(np.clip(np.linalg.norm(topology) / 10.0, 0.0, 1.0))
         quantum_term = float(np.real(np.vdot(quantum, quantum)))
-        return (
-            0.3 * entropy_term
-            + 0.3 * topology_term
-            + 0.2 * quantum_term
-            + 0.2 * self._acc
-        )
+        return 0.3 * entropy_term + 0.3 * topology_term + 0.2 * quantum_term + 0.2 * self._acc
 
     # ---- projections ----------------------------------------------------------
     def _predict_horizon(
@@ -174,9 +163,7 @@ class PredictiveSynthesisEngine:
             entropy_component = float(vector.entropy_signature[index])
         else:
             entropy_component = 0.0
-        direction_probability = float(
-            np.clip(0.5 + (entropy_component - 0.05) * 2.0, 0.1, 0.9)
-        )
+        direction_probability = float(np.clip(0.5 + (entropy_component - 0.05) * 2.0, 0.1, 0.9))
         magnitude = entropy_component * 100.0
         return {
             "direction_probability": direction_probability,
@@ -218,9 +205,7 @@ class PredictiveSynthesisEngine:
             )
         else:
             uncertainty = 0.0
-        quantum_risk = 1.0 - float(
-            np.real(np.vdot(vector.quantum_state, vector.quantum_state))
-        )
+        quantum_risk = 1.0 - float(np.real(np.vdot(vector.quantum_state, vector.quantum_state)))
         total = entropy_risk + topology_risk + uncertainty + quantum_risk
         if total > 2.0:
             level = "high"
@@ -245,12 +230,8 @@ class PredictiveSynthesisEngine:
     ) -> dict[str, float | str]:
         risk_total = float(risk.get("total", 0.0))
         adj = max(0.1, 1.0 - risk_total / 4.0)
-        short_prob = float(
-            predictions.get("short", {}).get("direction_probability", 0.5)
-        )
-        medium_prob = float(
-            predictions.get("medium", {}).get("direction_probability", 0.5)
-        )
+        short_prob = float(predictions.get("short", {}).get("direction_probability", 0.5))
+        medium_prob = float(predictions.get("medium", {}).get("direction_probability", 0.5))
         agreement = 1.0 - abs(short_prob - medium_prob)
         conf_mult = 1.0 + 0.5 * agreement
         size = adj * conf_mult

@@ -24,9 +24,7 @@ def main(csv_path: str) -> None:
         volume_slice = np.asarray(volumes[-128:], dtype=float)
         vector = engine.synthesize(price_slice, volume_slice)
         prediction = engine.predict(vector)
-        glyph = (
-            "StrongBloom_*" if prediction["risk"]["level"] != "high" else "Hermit_Defer"
-        )
+        glyph = "StrongBloom_*" if prediction["risk"]["level"] != "high" else "Hermit_Defer"
         decision = "enter" if prediction["exec"]["priority"] == "high" else "observe"
         writer.write(
             {
