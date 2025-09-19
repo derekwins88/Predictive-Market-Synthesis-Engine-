@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GlyphArenaCapsule",
+  "type": "object",
+  "required": ["capsule_id", "entity", "phase", "metrics", "timestamp"],
+  "properties": {
+    "capsule_id": {"type": "string"},
+    "entity": {"type": "string"},
+    "phase": {
+      "type": "string",
+      "enum": ["Compression", "Breakout", "Reversal", "Sanctuary", "Mirror"]
+    },
+    "metrics": {"type": "object"},
+    "timestamp": {"type": "string", "format": "date-time"}
+  }
+}
