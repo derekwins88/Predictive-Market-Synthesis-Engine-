@@ -1,11 +1,19 @@
 # sim/monte_carlo.py
 from __future__ import annotations
-from typing import Callable
+
+from collections.abc import Callable
+
 import numpy as np
 import pandas as pd
+
 from .engine import run_once
 
-def perturb_bars(bars: pd.DataFrame, rng: np.random.Generator, price_bps: float = 0.0) -> pd.DataFrame:
+
+def perturb_bars(
+    bars: pd.DataFrame,
+    rng: np.random.Generator,
+    price_bps: float = 0.0,
+) -> pd.DataFrame:
     if price_bps <= 0:
         return bars
     jitter = 1.0 + rng.normal(0.0, price_bps / 10_000.0, size=len(bars))
@@ -13,6 +21,7 @@ def perturb_bars(bars: pd.DataFrame, rng: np.random.Generator, price_bps: float 
     for col in ("open", "high", "low", "close"):
         df[col] = (df[col].to_numpy() * jitter).astype(float)
     return df
+
 
 def run_mc(
     bars: pd.DataFrame,
