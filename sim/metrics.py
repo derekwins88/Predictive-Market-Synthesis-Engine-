@@ -1,7 +1,9 @@
 # sim/metrics.py
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
+
 
 def daily_roi_df(equity: pd.Series) -> pd.DataFrame:
     eq = equity.dropna()
@@ -12,6 +14,7 @@ def daily_roi_df(equity: pd.Series) -> pd.DataFrame:
     pnl = daily.diff().fillna(0.0)
     return pd.DataFrame({"date": daily.index.date, "roi_pct": roi.values, "pnl": pnl.values})
 
+
 def max_drawdown_pct(equity: pd.Series) -> float:
     eq = equity.dropna()
     if eq.empty:
@@ -20,12 +23,14 @@ def max_drawdown_pct(equity: pd.Series) -> float:
     dd = (eq / run_max - 1.0).min()
     return float(abs(dd) * 100.0)
 
+
 def sharpe_daily(equity: pd.Series, rf: float = 0.0) -> float:
     ret = equity.pct_change().dropna()
     if ret.std() == 0 or ret.empty:
         return 0.0
     ex = ret - rf / 252.0
     return float(np.sqrt(252) * ex.mean() / ex.std())
+
 
 def calmar(equity: pd.Series) -> float:
     eq = equity.dropna()
@@ -36,6 +41,7 @@ def calmar(equity: pd.Series) -> float:
     cagr = (1.0 + total_ret) ** (1.0 / years) - 1.0 if years > 0 else 0.0
     mdd = max_drawdown_pct(eq) / 100.0
     return 0.0 if mdd == 0 else float(cagr / mdd)
+
 
 def equity_stats(equity: pd.Series) -> dict:
     daily = daily_roi_df(equity)

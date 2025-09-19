@@ -1,14 +1,19 @@
 # sim/engine.py
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
-import pandas as pd
+from typing import Any
+
 import numpy as np
+import pandas as pd
+
 from .metrics import daily_roi_df, equity_stats
+
 
 # --- simple indicators (vectorized) ---
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
+
 
 def rsi(close: pd.Series, n: int = 14) -> pd.Series:
     delta = close.diff()
@@ -17,6 +22,7 @@ def rsi(close: pd.Series, n: int = 14) -> pd.Series:
     rs = up / (down.replace(0, np.nan))
     out = 100 - (100 / (1 + rs))
     return out.fillna(50.0)
+
 
 def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     high, low, close = df["high"], df["low"], df["close"]
@@ -31,14 +37,23 @@ def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     ).max(axis=1)
     return tr.rolling(n).mean()
 
+
 # --- broker model (very small, close-to-close fills) ---
 @dataclass
 class Position:
     qty: int = 0
     avg_price: float = 0.0
 
+
 class Broker:
-    def __init__(self, cash: float, commission_per_contract: float = 2.0, slippage_ticks: float = 1.0, tick_value: float = 12.5, tick_size: float = 0.25):
+    def __init__(
+        self,
+        cash: float,
+        commission_per_contract: float = 2.0,
+        slippage_ticks: float = 1.0,
+        tick_value: float = 12.5,
+        tick_size: float = 0.25,
+    ):
         self.cash = float(cash)
         self.equity = float(cash)
         self.pos = Position()
@@ -66,7 +81,7 @@ class Broker:
     def buy(self, ts: pd.Timestamp, px: float, qty: int):
         fill_px = self._slip_price(px, "BUY")
         fees = self.commission * qty
-        dollar_mult = (self.tick_value / self.tick_size)
+        dollar_mult = self.tick_value / self.tick_size
         # adjust avg
         new_qty = self.pos.qty + qty
         if self.pos.qty == 0:
@@ -75,12 +90,21 @@ class Broker:
             new_avg = (self.pos.avg_price * self.pos.qty + fill_px * qty) / new_qty
         self.pos = Position(qty=new_qty, avg_price=new_avg)
         self.cash -= fees
-        self.trades.append({"ts": ts, "side": "BUY", "qty": qty, "price": fill_px, "fees": fees, "mult": dollar_mult})
+        self.trades.append(
+            {
+                "ts": ts,
+                "side": "BUY",
+                "qty": qty,
+                "price": fill_px,
+                "fees": fees,
+                "mult": dollar_mult,
+            }
+        )
 
     def sell(self, ts: pd.Timestamp, px: float, qty: int):
         fill_px = self._slip_price(px, "SELL")
         fees = self.commission * qty
-        dollar_mult = (self.tick_value / self.tick_size)
+        dollar_mult = self.tick_value / self.tick_size
         # close or reduce long
         realized = 0.0
         if self.pos.qty > 0:
@@ -91,7 +115,17 @@ class Broker:
             # shorting not implemented in first pack; keep long-only
             pass
         self.cash += realized - fees
-        self.trades.append({"ts": ts, "side": "SELL", "qty": qty, "price": fill_px, "fees": fees, "realized": realized, "mult": dollar_mult})
+        self.trades.append(
+            {
+                "ts": ts,
+                "side": "SELL",
+                "qty": qty,
+                "price": fill_px,
+                "fees": fees,
+                "realized": realized,
+                "mult": dollar_mult,
+            }
+        )
 
     @property
     def equity_curve(self) -> pd.Series:
@@ -101,9 +135,18 @@ class Broker:
         val = [v for _, v in self._equity_curve]
         return pd.Series(val, index=idx).sort_index()
 
+
 # --- Strategy contract (imported at runtime) ---
 class Context:
-    def __init__(self, cash: float, position_qty: int, position_avg: Optional[float], day_pnl: float, realized_dd_pct: float, regime: str):
+    def __init__(
+        self,
+        cash: float,
+        position_qty: int,
+        position_avg: float | None,
+        day_pnl: float,
+        realized_dd_pct: float,
+        regime: str,
+    ):
         self.cash = cash
         self.position_qty = position_qty
         self.position_avg = position_avg
@@ -111,12 +154,14 @@ class Context:
         self.realized_dd_pct = realized_dd_pct
         self.regime = regime
 
+
 def classify_regime(atr_to_close: float) -> str:
     if atr_to_close < 0.005:
         return "Calm"
     if atr_to_close < 0.010:
         return "Fractal"
     return "Cascade"
+
 
 def run_once(
     bars: pd.DataFrame,
@@ -144,13 +189,21 @@ def run_once(
     df["atr"] = atr(df[["high", "low", "close"]], atr_period)
     df["atr_to_close"] = df["atr"] / df["close"]
     # broker
-    broker = Broker(cash=cash, commission_per_contract=commission, slippage_ticks=slippage_ticks)
+    broker = Broker(
+        cash=cash,
+        commission_per_contract=commission,
+        slippage_ticks=slippage_ticks,
+    )
     day_start_equity = cash
     peak_equity = cash
 
     for i, row in df.iterrows():
         ts = row["timestamp"]
-        regime = classify_regime(row["atr_to_close"]) if pd.notna(row["atr_to_close"]) else "Calm"
+        atr_to_close = row["atr_to_close"]
+        if pd.notna(atr_to_close):
+            regime = classify_regime(atr_to_close)
+        else:
+            regime = "Calm"
         broker.mark(ts, float(row["close"]))
 
         # session/day tracking
@@ -158,12 +211,15 @@ def run_once(
         if i == 0 or df.loc[i - 1, "timestamp"].date() != date:
             day_start_equity = broker.equity
         peak_equity = max(peak_equity, broker.equity)
-        dd_pct = 0.0 if peak_equity == 0 else max(0.0, (peak_equity - broker.equity) / peak_equity * 100.0)
+        if peak_equity == 0:
+            dd_pct = 0.0
+        else:
+            dd_pct = max(0.0, (peak_equity - broker.equity) / peak_equity * 100.0)
 
         ctx = Context(
             cash=broker.cash,
             position_qty=broker.pos.qty,
-            position_avg=None if broker.pos.qty == 0 else broker.pos.avg_price,
+            position_avg=(None if broker.pos.qty == 0 else broker.pos.avg_price),
             day_pnl=broker.equity - day_start_equity,
             realized_dd_pct=dd_pct,
             regime=regime,
